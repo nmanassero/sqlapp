@@ -1,0 +1,43 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.0.31903.59
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "src", "src", "{44BA6AC9-38F2-4E18-860D-EE6397514637}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlTableSync.Core", "src\SqlTableSync.Core\SqlTableSync.Core.csproj", "{840DAAE0-2C67-4537-B2C2-69843DBA5E6E}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlTableSync.App", "src\SqlTableSync.App\SqlTableSync.App.csproj", "{009B70BA-28FD-41E4-8118-2E4197B662F8}"
+EndProject
+Project("{2150E333-8FDC-42A3-9474-1A3956D46DE8}") = "tests", "tests", "{1496A1CF-4794-462D-96A8-CBE4798BDC24}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SqlTableSync.Tests", "tests\SqlTableSync.Tests\SqlTableSync.Tests.csproj", "{AE8E90F1-4BBF-4762-9DD7-DABAF1BC80D8}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{840DAAE0-2C67-4537-B2C2-69843DBA5E6E}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{840DAAE0-2C67-4537-B2C2-69843DBA5E6E}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{840DAAE0-2C67-4537-B2C2-69843DBA5E6E}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{840DAAE0-2C67-4537-B2C2-69843DBA5E6E}.Release|Any CPU.Build.0 = Release|Any CPU
+		{009B70BA-28FD-41E4-8118-2E4197B662F8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{009B70BA-28FD-41E4-8118-2E4197B662F8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{009B70BA-28FD-41E4-8118-2E4197B662F8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{009B70BA-28FD-41E4-8118-2E4197B662F8}.Release|Any CPU.Build.0 = Release|Any CPU
+		{AE8E90F1-4BBF-4762-9DD7-DABAF1BC80D8}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{AE8E90F1-4BBF-4762-9DD7-DABAF1BC80D8}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{AE8E90F1-4BBF-4762-9DD7-DABAF1BC80D8}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{AE8E90F1-4BBF-4762-9DD7-DABAF1BC80D8}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(NestedProjects) = preSolution
+		{840DAAE0-2C67-4537-B2C2-69843DBA5E6E} = {44BA6AC9-38F2-4E18-860D-EE6397514637}
+		{009B70BA-28FD-41E4-8118-2E4197B662F8} = {44BA6AC9-38F2-4E18-860D-EE6397514637}
+		{AE8E90F1-4BBF-4762-9DD7-DABAF1BC80D8} = {1496A1CF-4794-462D-96A8-CBE4798BDC24}
+	EndGlobalSection
+EndGlobal

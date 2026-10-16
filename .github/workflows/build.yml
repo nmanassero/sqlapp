@@ -1,0 +1,65 @@
+name: build
+
+on:
+  push:
+    branches: ["**"]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    services:
+      mssql:
+        image: mcr.microsoft.com/mssql/server:2022-latest
+        env:
+          ACCEPT_EULA: "Y"
+          MSSQL_SA_PASSWORD: "Test_Pass123!"
+        ports: ["1433:1433"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Esperar SQL Server
+        run: |
+          for i in $(seq 1 30); do
+            (echo > /dev/tcp/localhost/1433) 2>/dev/null && break
+            sleep 2
+          done
+          sleep 10
+      - name: Pruebas
+        env:
+          SQLSYNC_TEST_SERVER: localhost
+          SQLSYNC_TEST_USER: sa
+          SQLSYNC_TEST_PASSWORD: "Test_Pass123!"
+        run: dotnet test tests/SqlTableSync.Tests -c Release
+
+  installer:
+    runs-on: windows-latest
+    needs: test
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 8.0.x
+      - name: Instalar Inno Setup
+        run: choco install innosetup -y --no-progress
+      - name: Compilar instalador
+        shell: pwsh
+        run: |
+          $v = "1.0.0"
+          if ("${{ github.ref_type }}" -eq "tag") { $v = "${{ github.ref_name }}".TrimStart("v") }
+          ./build.ps1 -Version $v
+      - uses: actions/upload-artifact@v4
+        with:
+          name: SqlTableSync-windows
+          path: dist/*
+      - name: Publicar release
+        if: github.ref_type == 'tag'
+        uses: softprops/action-gh-release@v2
+        with:
+          files: dist/*
