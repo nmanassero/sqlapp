@@ -12,7 +12,7 @@ internal sealed class ResultsPage : UserControl
 
     private readonly AppSettings _settings;
     private readonly DataGridView _grid = new();
-    private readonly TextBox _search = new() { PlaceholderText = "Buscar tabla...", Width = 220 };
+    private readonly TextBox _search = new() { PlaceholderText = "Buscar tabla (filtra mientras escribe)...", Width = 300 };
     private readonly Button _compare = new() { Text = "Comparar datos", AutoSize = true };
     private readonly Button _viewDiff = new() { Text = "Ver diferencias", AutoSize = true };
     private readonly Button _selectAll = new() { Text = "Seleccionar todas", AutoSize = true };
@@ -27,6 +27,10 @@ internal sealed class ResultsPage : UserControl
     private readonly Button _cancel = new() { Text = "Cancelar", AutoSize = true, Visible = false };
     private readonly Label _selectedLabel = new() { AutoSize = false, TextAlign = ContentAlignment.MiddleRight, Width = 110, Height = 40, ForeColor = Color.FromArgb(90, 90, 90) };
     private readonly ArrowButton _deploy = new() { Text = "Desplegar..." };
+    private readonly StructurePanel _structure = new() { Dock = DockStyle.Fill };
+    private readonly TabControl _bottomTabs = new() { Dock = DockStyle.Fill };
+    private readonly System.Windows.Forms.Timer _structureTimer = new() { Interval = 200 };
+    private TableItem? _structureShown;
 
     private readonly List<TableItem> _items = new();
     private readonly Dictionary<TableGroup, GroupHeader> _groups = new();
@@ -71,12 +75,25 @@ internal sealed class ResultsPage : UserControl
         statusBar.Controls.AddRange(new Control[] { _progress, _cancel, _statusLabel });
         _progress.Margin = new Padding(3, 7, 3, 3);
         _cancel.Click += (_, _) => { _cts?.Cancel(); _statusLabel.Text = "Cancelando..."; };
-        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 170 };
-        bottom.Controls.Add(_log);
+        var bottom = new Panel { Dock = DockStyle.Bottom, Height = 330 };
+        _bottomTabs.TabPages.Add(new TabPage("Estructura de la tabla") { Controls = { _structure } });
+        _bottomTabs.TabPages.Add(new TabPage("Registro") { Controls = { _log } });
+        bottom.Controls.Add(_bottomTabs);
         bottom.Controls.Add(statusBar);
         var splitter = new Splitter { Dock = DockStyle.Bottom, Height = 4, BackColor = Theme.Separator };
 
         SetupGrid();
+        // Al hacer clic en una tabla se muestra su estructura en origen y destino.
+        _structureTimer.Tick += async (_, _) =>
+        {
+            _structureTimer.Stop();
+            var item = CurrentItem;
+            if (item == _structureShown) return;
+            _structureShown = item;
+            _bottomTabs.SelectedIndex = 0;
+            await _structure.ShowAsync(item, _source, _target);
+        };
+        _grid.CurrentCellChanged += (_, _) => { _structureTimer.Stop(); _structureTimer.Start(); };
         Controls.Add(_grid);
         Controls.Add(splitter);
         Controls.Add(bottom);
@@ -468,6 +485,8 @@ internal sealed class ResultsPage : UserControl
         var previous = _items.ToDictionary(i => i.Name, i => (i.Selected, i.Where));
         _items.Clear();
         _groups.Clear();
+        _structure.ClearCache();
+        _structureShown = null;
         ShowNotice(null);
         Rebuild();
         SetBusy(true, "Leyendo tablas...");
@@ -649,6 +668,8 @@ internal sealed class ResultsPage : UserControl
         }
         Log($"Despliegue terminado en {total.Elapsed.TotalSeconds:N1} s: {ok} correctas, {failed} con error.");
         await RefreshTargetCountsAsync();
+        _structure.ClearCache();
+        _structureShown = null;
         Rebuild();
         if (failed > 0)
             MessageBox.Show(this, $"{failed} tabla(s) con error. Vea el detalle en la columna Estado y en el registro.", "Despliegue", MessageBoxButtons.OK, MessageBoxIcon.Warning);

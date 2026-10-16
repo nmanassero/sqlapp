@@ -19,12 +19,17 @@ También se genera un `.zip` portable: se descomprime y se ejecuta `SqlTableSync
 
 ## Uso
 
-1. **Conexiones**: complete Origen (izquierda) y Destino (derecha): servidor, autenticación de
-   Windows o de SQL Server, *Encrypt* / *Trust server certificate* y la base de datos (el botón de
-   actualizar lista las bases). Pulse **Comparar ahora**.
-2. **Tablas**: se listan emparejadas por esquema y nombre, agrupadas en: *sólo en origen*
-   (se crearán), *en ambas bases*, *sólo en destino*, y tras comparar: *con diferencias*,
-   *idénticas* o *con error*. Marque las tablas que quiere pasar.
+1. **Conexiones**, para Origen (izquierda) y Destino (derecha):
+   - Paso 1: servidor (IP o nombre), usuario y contraseña de SQL Server → **Conectar** (o Enter).
+   - Paso 2: elija la base de datos en la lista.
+   - Pulse **Comparar ahora** (si falta conectar alguno, lo conecta en ese momento).
+2. **Tablas**: se listan emparejadas por esquema y nombre, con la cantidad de filas de cada lado,
+   agrupadas en: *sólo en origen* (se crearán), *en ambas bases*, *sólo en destino*, y tras
+   comparar: *con diferencias*, *idénticas* o *con error*. El cuadro **Buscar tabla** filtra
+   mientras escribe. Marque las tablas que quiere pasar.
+   - **Clic en una tabla**: abajo se muestra su **estructura en origen y en destino** lado a lado
+     (columnas, tipo, nulos, identity, defaults, PK e índices), resaltando columnas distintas o que
+     existen de un solo lado.
    - **Filtro WHERE** (opcional, por tabla): p. ej. `Fecha >= '2024-01-01'` para pasar sólo ese
      subconjunto. Se aplica en origen y a las filas de destino que se reemplazan o eliminan; las
      filas de destino fuera del filtro no se tocan.
@@ -87,7 +92,7 @@ tiempos dependerán del ancho de banda y del servidor):
   o Sincronizar sobre una estructura existente.
 
 La configuración (servidores recientes, opciones) se guarda en `%APPDATA%\SqlTableSync\settings.json`.
-La contraseña sólo se guarda si marca *Recordar credenciales*, cifrada con DPAPI para su usuario de Windows.
+Sólo se usa autenticación de SQL Server (usuario y contraseña). La contraseña sólo se guarda si marca *Recordar credenciales*, cifrada con DPAPI para su usuario de Windows.
 
 ## Compilar
 

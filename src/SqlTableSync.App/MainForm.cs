@@ -68,23 +68,16 @@ internal sealed class MainForm : Form
         compare.Click += async (_, _) => await CompareAsync();
         swap.Click += (_, _) =>
         {
-            var s = _source.SaveTo(); var sp = _source.GetConnection().Password;
-            var t = _target.SaveTo(); var tp = _target.GetConnection().Password;
+            var s = _source.SaveTo(); var sp = _source.Password;
+            var t = _target.SaveTo(); var tp = _target.Password;
             _source.LoadFrom(t); _target.LoadFrom(s);
             // La contraseña se mueve aunque no esté guardada.
-            SetPassword(_source, tp); SetPassword(_target, sp);
+            _source.SetPassword(tp); _target.SetPassword(sp);
             UpdateHeader();
         };
-        AcceptButton = compare;
 
         _connectionPage.Controls.Add(split);
         _connectionPage.Controls.Add(bottom);
-    }
-
-    private static void SetPassword(ConnectionPanel panel, string password)
-    {
-        foreach (Control c in panel.Controls)
-            if (c is TextBox { UseSystemPasswordChar: true } tb) tb.Text = password;
     }
 
     private void UpdateHeader()
@@ -96,6 +89,9 @@ internal sealed class MainForm : Form
 
     private async Task CompareAsync()
     {
+        // Si falta conectar alguno de los dos, se conecta ahora.
+        if (!_source.IsConnected && !await _source.ConnectAsync()) return;
+        if (!_target.IsConnected && !await _target.ConnectAsync()) return;
         string? err = _source.ValidateInput();
         if (err != null) { _source.ShowStatus(err); return; }
         err = _target.ValidateInput();

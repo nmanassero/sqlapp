@@ -2,44 +2,56 @@ using SqlTableSync.Core;
 
 namespace SqlTableSync.App;
 
-/// <summary>Formulario de conexión (servidor, autenticación, base) para origen o destino.</summary>
+/// <summary>
+/// Conexión paso a paso: primero servidor (IP), usuario y contraseña de SQL Server y "Conectar";
+/// recién entonces se habilita la lista de bases de datos.
+/// </summary>
 internal sealed class ConnectionPanel : UserControl
 {
     private readonly ComboBox _server = new() { DropDownStyle = ComboBoxStyle.DropDown };
-    private readonly ComboBox _auth = new() { DropDownStyle = ComboBoxStyle.DropDownList };
     private readonly TextBox _user = new();
     private readonly TextBox _password = new() { UseSystemPasswordChar = true };
     private readonly CheckBox _remember = new() { Text = "Recordar credenciales", AutoSize = true };
     private readonly CheckBox _encrypt = new() { Text = "Encrypt", AutoSize = true };
     private readonly CheckBox _trust = new() { Text = "Trust server certificate", AutoSize = true, Checked = true };
-    private readonly ComboBox _database = new() { DropDownStyle = ComboBoxStyle.DropDown };
-    private readonly Button _refresh = new() { Text = "", FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand };
+    private readonly Button _connect = Theme.PrimaryButton("Conectar");
+    private readonly ComboBox _database = new() { DropDownStyle = ComboBoxStyle.DropDownList, Enabled = false };
+    private readonly Button _refresh = new() { Text = "", FlatStyle = FlatStyle.Flat, Cursor = Cursors.Hand, Enabled = false };
     private readonly Label _status = new() { AutoSize = false, ForeColor = Theme.Delete };
-    private readonly Label _lblAuth = Lbl("Autenticación"), _lblUser = Lbl("Usuario"), _lblPass = Lbl("Contraseña");
-    private readonly Label _lblServer = Lbl("Servidor", bold: true), _lblDb = Lbl("Base de datos", bold: true);
-    private string _loadedFor = "";
+    private readonly Label _lblServer = Lbl("Servidor (IP o nombre)", bold: true);
+    private readonly Label _lblUser = Lbl("Usuario"), _lblPass = Lbl("Contraseña");
+    private readonly Label _step1 = Step("1"), _step2 = Step("2");
+    private readonly Label _lblDb = Lbl("Base de datos", bold: true);
+    private string? _pendingDatabase;
+    private bool _connected;
 
     public ConnectionPanel()
     {
         BackColor = Color.White;
         Font = Theme.Base;
-        _auth.Items.AddRange(new object[] { "Autenticación de Windows", "Autenticación de SQL Server" });
-        _auth.SelectedIndex = 0;
-        _auth.SelectedIndexChanged += (_, _) => UpdateAuthState();
+        _connect.Width = 110;
+        _connect.Height = 30;
+        _connect.Click += async (_, _) => await ConnectAsync();
         _refresh.FlatAppearance.BorderSize = 0;
         _refresh.FlatAppearance.MouseOverBackColor = Color.FromArgb(235, 243, 252);
         _refresh.Paint += (_, e) => Theme.DrawRefresh(e.Graphics, new Rectangle(5, 5, _refresh.Width - 10, _refresh.Height - 10),
             _refresh.Enabled ? Theme.Accent : Color.Silver);
-        _refresh.Click += async (_, _) => await LoadDatabasesAsync(force: true);
-        _database.DropDown += async (_, _) => await LoadDatabasesAsync(force: false);
-        _server.TextChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
-        _database.TextChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
-        new ToolTip().SetToolTip(_remember, "Guarda la contraseña cifrada con DPAPI para su usuario de Windows en %APPDATA%\\SqlTableSync.");
+        _refresh.Click += async (_, _) => await ConnectAsync();
+
+        // Cambiar servidor o credenciales obliga a volver a conectar.
+        foreach (var c in new Control[] { _server, _user, _password })
+            c.TextChanged += (_, _) => Disconnect();
+        _encrypt.CheckedChanged += (_, _) => Disconnect();
+        _trust.CheckedChanged += (_, _) => Disconnect();
+        _database.SelectedIndexChanged += (_, _) => Changed?.Invoke(this, EventArgs.Empty);
+        _password.KeyDown += async (_, e) => { if (e.KeyCode == Keys.Enter) { e.SuppressKeyPress = true; await ConnectAsync(); } };
+
+        new ToolTip().SetToolTip(_remember, "Guarda la contraseña cifrada (DPAPI) para su usuario de Windows en %APPDATA%\\SqlTableSync.");
         new ToolTip().SetToolTip(_refresh, "Actualizar la lista de bases de datos");
 
-        Controls.AddRange(new Control[] { _lblServer, _server, _lblAuth, _auth, _lblUser, _user, _lblPass, _password,
-            _remember, _encrypt, _trust, _lblDb, _database, _refresh, _status });
-        UpdateAuthState();
+        Controls.AddRange(new Control[] { _step1, _lblServer, _server, _lblUser, _user, _lblPass, _password,
+            _remember, _encrypt, _trust, _connect, _step2, _lblDb, _database, _refresh, _status });
+        UpdateState();
     }
 
     public event EventHandler? Changed;
@@ -50,28 +62,49 @@ internal sealed class ConnectionPanel : UserControl
         TextAlign = bold ? ContentAlignment.MiddleLeft : ContentAlignment.MiddleRight,
     };
 
+    private static Label Step(string n) => new()
+    {
+        Text = n, AutoSize = false, Size = new Size(22, 22), TextAlign = ContentAlignment.MiddleCenter,
+        BackColor = Theme.Accent, ForeColor = Color.White, Font = Theme.Bold,
+    };
+
     protected override void OnLayout(LayoutEventArgs e)
     {
         base.OnLayout(e);
-        int w = ClientSize.Width, m = 16, lx = 130, fw = Math.Max(120, w - lx - m);
-        _lblServer.SetBounds(m, 14, 200, 20);
-        _server.SetBounds(m, 36, w - 2 * m, 24);
-        _lblAuth.SetBounds(m, 72, lx - m - 4, 23); _auth.SetBounds(lx, 72, fw, 24);
-        _lblUser.SetBounds(m, 106, lx - m - 4, 23); _user.SetBounds(lx, 106, fw, 24);
-        _lblPass.SetBounds(m, 140, lx - m - 4, 23); _password.SetBounds(lx, 140, fw, 24);
-        _remember.Location = new Point(lx, 174);
-        _encrypt.Location = new Point(lx, 210);
-        _trust.Location = new Point(lx + 90, 210);
-        _lblDb.SetBounds(m, 252, 200, 20);
-        _database.SetBounds(m, 274, w - 2 * m - 36, 24);
-        _refresh.SetBounds(w - m - 32, 271, 32, 30);
-        _status.SetBounds(m, 306, w - 2 * m, 60);
+        int w = ClientSize.Width, m = 16, lx = 110, fw = Math.Max(120, w - lx - m);
+        _step1.Location = new Point(m, 14);
+        _lblServer.SetBounds(m + 30, 15, 260, 20);
+        _server.SetBounds(m, 44, w - 2 * m, 24);
+        _lblUser.SetBounds(m, 80, lx - m - 4, 23); _user.SetBounds(lx, 80, fw, 24);
+        _lblPass.SetBounds(m, 114, lx - m - 4, 23); _password.SetBounds(lx, 114, fw, 24);
+        _remember.Location = new Point(lx, 146);
+        _encrypt.Location = new Point(lx, 172);
+        _trust.Location = new Point(lx + 90, 172);
+        _connect.Location = new Point(w - m - _connect.Width, 160);
+        _step2.Location = new Point(m, 222);
+        _lblDb.SetBounds(m + 30, 223, 200, 20);
+        _database.SetBounds(m, 252, w - 2 * m - 36, 24);
+        _refresh.SetBounds(w - m - 32, 249, 32, 30);
+        _status.SetBounds(m, 286, w - 2 * m, 60);
     }
 
-    private void UpdateAuthState()
+    private void UpdateState()
     {
-        bool sql = _auth.SelectedIndex == 1;
-        _user.Enabled = _password.Enabled = _remember.Enabled = sql;
+        _database.Enabled = _refresh.Enabled = _connected;
+        _step2.BackColor = _connected ? Theme.Accent : Color.Silver;
+        _lblDb.ForeColor = _connected ? Color.Black : Color.Gray;
+        _refresh.Invalidate();
+    }
+
+    private void Disconnect()
+    {
+        if (!_connected) return;
+        _connected = false;
+        _pendingDatabase = _database.SelectedItem as string ?? _pendingDatabase;
+        _database.Items.Clear();
+        ShowStatus("");
+        UpdateState();
+        Changed?.Invoke(this, EventArgs.Empty);
     }
 
     public void SetRecentServers(IEnumerable<string> servers)
@@ -85,43 +118,52 @@ internal sealed class ConnectionPanel : UserControl
     public void LoadFrom(AppSettings.SavedConnection c)
     {
         _server.Text = c.Server;
-        _auth.SelectedIndex = c.IntegratedSecurity ? 0 : 1;
         _user.Text = c.User;
         _remember.Checked = c.RememberCredentials;
         _password.Text = c.RememberCredentials ? AppSettings.Unprotect(c.ProtectedPassword) : "";
         _encrypt.Checked = c.Encrypt;
         _trust.Checked = c.TrustServerCertificate;
-        _database.Text = c.Database;
+        _connected = true;   // fuerza el reseteo
+        Disconnect();
+        _pendingDatabase = c.Database;
     }
 
     public AppSettings.SavedConnection SaveTo() => new()
     {
         Server = _server.Text.Trim(),
-        Database = _database.Text.Trim(),
-        IntegratedSecurity = _auth.SelectedIndex == 0,
+        Database = Database,
+        IntegratedSecurity = false,
         User = _user.Text.Trim(),
         RememberCredentials = _remember.Checked,
-        ProtectedPassword = _remember.Checked && _auth.SelectedIndex == 1 ? AppSettings.Protect(_password.Text) : null,
+        ProtectedPassword = _remember.Checked ? AppSettings.Protect(_password.Text) : null,
         Encrypt = _encrypt.Checked,
         TrustServerCertificate = _trust.Checked,
     };
 
+    private string Database => _database.SelectedItem as string ?? _pendingDatabase ?? "";
+
+    public string Password => _password.Text;
+    public void SetPassword(string password) => _password.Text = password;
+
     public SqlConnectionInfo GetConnection() => new()
     {
         Server = _server.Text.Trim(),
-        Database = _database.Text.Trim(),
-        IntegratedSecurity = _auth.SelectedIndex == 0,
+        Database = Database,
+        IntegratedSecurity = false,
         User = _user.Text.Trim(),
         Password = _password.Text,
         Encrypt = _encrypt.Checked,
         TrustServerCertificate = _trust.Checked,
     };
 
+    public bool IsConnected => _connected;
+
     public string? ValidateInput()
     {
         if (string.IsNullOrWhiteSpace(_server.Text)) return "Indique el servidor.";
-        if (_auth.SelectedIndex == 1 && string.IsNullOrWhiteSpace(_user.Text)) return "Indique el usuario.";
-        if (string.IsNullOrWhiteSpace(_database.Text)) return "Indique la base de datos.";
+        if (string.IsNullOrWhiteSpace(_user.Text)) return "Indique el usuario.";
+        if (!_connected) return "Pulse \"Conectar\" y elija la base de datos.";
+        if (_database.SelectedItem is null) return "Elija la base de datos.";
         return null;
     }
 
@@ -131,32 +173,42 @@ internal sealed class ConnectionPanel : UserControl
         _status.Text = text;
     }
 
-    private async Task LoadDatabasesAsync(bool force)
+    /// <summary>Conecta y carga las bases. Devuelve true si se conectó.</summary>
+    public async Task<bool> ConnectAsync()
     {
+        if (string.IsNullOrWhiteSpace(_server.Text)) { ShowStatus("Indique el servidor."); return false; }
+        if (string.IsNullOrWhiteSpace(_user.Text)) { ShowStatus("Indique el usuario."); return false; }
         var conn = GetConnection();
-        string key = $"{conn.Server}|{conn.IntegratedSecurity}|{conn.User}";
-        if (string.IsNullOrWhiteSpace(conn.Server) || (!force && key == _loadedFor && _database.Items.Count > 0)) return;
-        ShowStatus("");
+        string wanted = _database.SelectedItem as string ?? _pendingDatabase ?? "";
+        ShowStatus("Conectando...", error: false);
         Cursor = Cursors.WaitCursor;
-        _refresh.Enabled = false;
+        _connect.Enabled = false;
         try
         {
             var dbs = await conn.ListDatabasesAsync();
-            string current = _database.Text;
             _database.Items.Clear();
             foreach (var d in dbs) _database.Items.Add(d);
-            _database.Text = current;
-            _loadedFor = key;
-            ShowStatus($"Conectado. {dbs.Count} bases de datos.", error: false);
+            _connected = true;
+            int idx = dbs.FindIndex(d => string.Equals(d, wanted, StringComparison.OrdinalIgnoreCase));
+            if (idx >= 0) _database.SelectedIndex = idx;
+            _pendingDatabase = null;
+            UpdateState();
+            ShowStatus($"Conectado. {dbs.Count} bases de datos disponibles.", error: false);
+            if (idx < 0) _database.Focus();
+            Changed?.Invoke(this, EventArgs.Empty);
+            return true;
         }
         catch (Exception ex)
         {
+            _connected = false;
+            UpdateState();
             ShowStatus("No se pudo conectar: " + ex.Message);
+            return false;
         }
         finally
         {
             Cursor = Cursors.Default;
-            _refresh.Enabled = true;
+            _connect.Enabled = true;
         }
     }
 }
